@@ -1,0 +1,40 @@
+{
+  "name": "react-native-axios-inspector",
+  "version": "0.1.0",
+  "description": "Dev-only floating network inspector for React Native apps using axios — no proxy, no debugger attached. Zero native dependencies.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "axios",
+    "network",
+    "logger",
+    "inspector",
+    "debugger",
+    "devtools"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "axios": ">=0.21.0",
+    "react": ">=16.8.0",
+    "react-native": ">=0.60.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "axios": "^1.7.0",
+    "react": "^18.2.0",
+    "react-native": "^0.74.0",
+    "typescript": "^5.4.0"
+  }
+}
