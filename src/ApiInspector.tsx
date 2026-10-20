@@ -55,6 +55,21 @@ function statusColor(entry: ApiLogEntry): string {
   return entry.ok ? "#1f9d55" : "#d64545";
 }
 
+/** axios's `params` option never makes it into `entry.url` — it's sent separately at request time. */
+function toQueryString(params: unknown): string {
+  if (!params || typeof params !== "object") return "";
+  const entries = Object.entries(params as Record<string, unknown>).filter(
+    ([, value]) => value !== undefined,
+  );
+  if (entries.length === 0) return "";
+  return entries
+    .map(
+      ([key, value]) =>
+        `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`,
+    )
+    .join("&");
+}
+
 function buildCurl(entry: ApiLogEntry): string {
   const headers = (entry.requestHeaders ?? {}) as Record<string, unknown>;
   const headerFlags = Object.entries(headers)
@@ -62,7 +77,11 @@ function buildCurl(entry: ApiLogEntry): string {
     .join(" ");
   const bodyFlag =
     entry.body !== undefined ? `-d '${JSON.stringify(entry.body)}'` : "";
-  return [`curl -X ${entry.method}`, headerFlags, bodyFlag, `'${entry.url}'`]
+  const query = toQueryString(entry.params);
+  const url = query
+    ? `${entry.url}${entry.url.includes("?") ? "&" : "?"}${query}`
+    : entry.url;
+  return [`curl -X ${entry.method}`, headerFlags, bodyFlag, `'${url}'`]
     .filter(Boolean)
     .join(" ");
 }
@@ -138,13 +157,16 @@ export function ApiInspector({
     right: position.endsWith("right") ? (insets?.right ?? 0) + 16 : undefined,
   };
 
-  function copyCurl(entry: ApiLogEntry) {
-    const curl = buildCurl(entry);
+  function copyText(text: string) {
     if (onCopyToClipboard) {
-      onCopyToClipboard(curl);
+      onCopyToClipboard(text);
     } else {
-      Share.share({ message: curl });
+      Share.share({ message: text });
     }
+  }
+
+  function copyCurl(entry: ApiLogEntry) {
+    copyText(buildCurl(entry));
   }
 
   return (
@@ -222,7 +244,14 @@ export function ApiInspector({
                 }
                 renderItem={({ item: [label, value] }) => (
                   <View style={styles.detailCard}>
-                    <Text style={styles.detailLabel}>{label}</Text>
+                    <View style={styles.detailCardHeader}>
+                      <Text style={styles.detailLabel}>{label}</Text>
+                      {value !== "—" && (
+                        <Pressable onPress={() => copyText(value)} hitSlop={8}>
+                          <Text style={styles.detailCopyAction}>Copy</Text>
+                        </Pressable>
+                      )}
+                    </View>
                     <View style={styles.codeBlock}>
                       <Text style={styles.detailValue} selectable>
                         {value}
@@ -457,14 +486,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ececef",
   },
+  detailCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   detailLabel: {
     fontSize: 11,
     fontWeight: "700",
     color: "#8a8a8e",
-    marginBottom: 8,
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
+  detailCopyAction: { fontSize: 12, fontWeight: "700", color: "#3a79f2" },
   codeBlock: {
     backgroundColor: "#fff",
     borderRadius: 8,

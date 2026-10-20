@@ -17,8 +17,13 @@ network traffic directly.
 - **Structured detail view** — tapping a row opens a summary card (method badge, status pill, duration,
   URL, error message) followed by bordered, monospaced sections for params, body, request headers,
   response, and response headers — all selectable for copy.
-- **Copy as cURL** — turn any logged request into a ready-to-run `curl` command, with secrets already
-  redacted. Uses a real clipboard if you wire one up, otherwise falls back to the native share sheet.
+- **Copy any section** — each detail section (params, body, request headers, response, response headers)
+  has its own "Copy" action, so you can grab and share just the piece you need — e.g. just the response
+  body for a bug report — without hand-selecting text.
+- **Copy as cURL** — turn any logged request into a ready-to-run `curl` command, including its query
+  params (axios keeps those separate from the URL internally — this folds them back in so the repro is
+  complete), with secrets already redacted. Uses a real clipboard if you wire one up, otherwise falls back
+  to the native share sheet.
 - **Automatic secret redaction** — headers, body, and response are recursively scanned by key name
   (`password`, `token`, `authorization`, `apiKey`, `secret`, …) and masked before anything is stored.
 - **Error and pending badges** — the floating button badges itself with the error count (or total count if
@@ -91,8 +96,9 @@ export default function App() {
 
 Tap the floating bug button to open the live log. Long-press it to hide it for the session (no code
 change needed). Long-press the ⚠️ icon on an error row to drop just that row from the list until the next
-reload. Tap any row for the full, structured request/response detail, including a "Copy as cURL" action.
-Use "Clear" in the header to wipe all stored logs.
+reload. Tap any row for the full, structured request/response detail — each section (params, body,
+headers, response) has its own "Copy" action, and the header's "Copy as cURL" reproduces the whole
+request, query params included. Use "Clear" in the header to wipe all stored logs.
 
 ## Options
 
