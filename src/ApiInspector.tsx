@@ -10,7 +10,12 @@ import {
   View,
 } from "react-native";
 
-import { ApiLogEntry, getApiLogs, subscribeApiLogs } from "./apiLogStore";
+import {
+  ApiLogEntry,
+  clearApiLogs,
+  getApiLogs,
+  subscribeApiLogs,
+} from "./apiLogStore";
 
 type Filter = "all" | "errors" | "pending";
 
@@ -86,17 +91,29 @@ export function ApiInspector({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // Long-press-to-hide for an error row. Kept in local state (not the store), so it's a
+  // session-only dismiss: it resets on the next app reload/remount, not a real delete.
+  const [dismissedIds, setDismissedIds] = useState<ReadonlySet<number>>(
+    () => new Set(),
+  );
 
   useEffect(() => subscribeApiLogs(setLogs), []);
 
   const active = enabled ?? isDevEnvironment();
 
+  function dismissLog(id: number) {
+    setDismissedIds((prev) => new Set(prev).add(id));
+  }
+
   const filteredLogs = useMemo(
     () =>
       logs.filter(
-        (entry) => matchesFilter(entry, filter) && matchesQuery(entry, query),
+        (entry) =>
+          !dismissedIds.has(entry.id) &&
+          matchesFilter(entry, filter) &&
+          matchesQuery(entry, query),
       ),
-    [logs, filter, query],
+    [logs, filter, query, dismissedIds],
   );
 
   const errorCount = useMemo(
@@ -167,12 +184,6 @@ export function ApiInspector({
               </View>
               <FlatList
                 data={[
-                  ["Request", `${selected.method} ${selected.url}`],
-                  [
-                    "Status",
-                    `${selected.status}${selected.message ? ` — ${selected.message}` : ""}`,
-                  ],
-                  ["Time", `${selected.ms} ms`],
                   ["Params", pretty(selected.params)],
                   ["Body", pretty(selected.body)],
                   ["Request headers", pretty(selected.requestHeaders)],
@@ -180,12 +191,43 @@ export function ApiInspector({
                   ["Response headers", pretty(selected.responseHeaders)],
                 ]}
                 keyExtractor={([label]) => label}
-                renderItem={({ item: [label, value] }) => (
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailLabel}>{label}</Text>
-                    <Text style={styles.detailValue} selectable>
-                      {value}
+                ListHeaderComponent={
+                  <View style={styles.summaryCard}>
+                    <View style={styles.summaryTopRow}>
+                      <Text style={styles.methodBadge}>{selected.method}</Text>
+                      <Text
+                        style={[
+                          styles.statusBadge,
+                          {
+                            color: statusColor(selected),
+                            borderColor: statusColor(selected),
+                          },
+                        ]}
+                      >
+                        {selected.pending ? "…" : selected.status}
+                      </Text>
+                      <Text style={styles.summaryTime}>
+                        {selected.pending ? "" : `${selected.ms} ms`}
+                      </Text>
+                    </View>
+                    <Text style={styles.summaryUrl} selectable>
+                      {selected.url}
                     </Text>
+                    {selected.message ? (
+                      <Text style={styles.summaryMessage} selectable>
+                        {selected.message}
+                      </Text>
+                    ) : null}
+                  </View>
+                }
+                renderItem={({ item: [label, value] }) => (
+                  <View style={styles.detailCard}>
+                    <Text style={styles.detailLabel}>{label}</Text>
+                    <View style={styles.codeBlock}>
+                      <Text style={styles.detailValue} selectable>
+                        {value}
+                      </Text>
+                    </View>
                   </View>
                 )}
                 contentContainerStyle={styles.detailList}
@@ -195,9 +237,14 @@ export function ApiInspector({
             <>
               <View style={styles.header}>
                 <Text style={styles.title}>API Inspector</Text>
-                <Pressable onPress={() => setVisible(false)}>
-                  <Text style={styles.headerAction}>Close</Text>
-                </Pressable>
+                <View style={styles.headerActions}>
+                  <Pressable onPress={() => clearApiLogs()}>
+                    <Text style={styles.headerAction}>Clear</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setVisible(false)}>
+                    <Text style={styles.headerAction}>Close</Text>
+                  </Pressable>
+                </View>
               </View>
               <TextInput
                 value={query}
@@ -248,14 +295,24 @@ export function ApiInspector({
                       </Text>
                     </View>
                     <View style={styles.rowBottom}>
-                      <Text
-                        style={[
-                          styles.statusPill,
-                          { color: statusColor(item) },
-                        ]}
-                      >
-                        {item.pending ? "…" : item.status}
-                      </Text>
+                      <View style={styles.rowStatusGroup}>
+                        {!item.pending && !item.ok && (
+                          <Pressable
+                            onLongPress={() => dismissLog(item.id)}
+                            hitSlop={8}
+                          >
+                            <Text style={styles.errorIcon}>⚠️</Text>
+                          </Pressable>
+                        )}
+                        <Text
+                          style={[
+                            styles.statusPill,
+                            { color: statusColor(item) },
+                          ]}
+                        >
+                          {item.pending ? "…" : item.status}
+                        </Text>
+                      </View>
                       <Text style={styles.rowTime}>
                         {item.pending ? "" : `${item.ms} ms`}
                       </Text>
@@ -310,6 +367,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   title: { fontSize: 17, fontWeight: "600" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 16 },
   headerAction: { fontSize: 15, color: "#3a79f2" },
   search: {
     marginHorizontal: 16,
@@ -349,16 +407,75 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 4,
   },
+  rowStatusGroup: { flexDirection: "row", alignItems: "center", gap: 6 },
+  errorIcon: { fontSize: 12 },
   statusPill: { fontSize: 12, fontWeight: "700" },
   rowTime: { fontSize: 12, color: "#8a8a8e" },
   empty: { textAlign: "center", marginTop: 40, color: "#8a8a8e" },
   detailList: { paddingHorizontal: 16, paddingBottom: 40 },
-  detailSection: { marginBottom: 16 },
-  detailLabel: {
+  summaryCard: {
+    marginBottom: 16,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: "#f7f7f9",
+    borderWidth: 1,
+    borderColor: "#ececef",
+  },
+  summaryTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  methodBadge: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#8a8a8e",
-    marginBottom: 4,
+    color: "#fff",
+    backgroundColor: "#3a79f2",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    overflow: "hidden",
   },
-  detailValue: { fontSize: 13, fontFamily: "Courier" },
+  statusBadge: {
+    fontSize: 12,
+    fontWeight: "700",
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    overflow: "hidden",
+  },
+  summaryTime: { fontSize: 12, color: "#8a8a8e", marginLeft: "auto" },
+  summaryUrl: { fontSize: 14, fontWeight: "600", marginBottom: 2 },
+  summaryMessage: { fontSize: 12, color: "#8a8a8e" },
+  detailCard: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "#f7f7f9",
+    borderWidth: 1,
+    borderColor: "#ececef",
+  },
+  detailLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#8a8a8e",
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  codeBlock: {
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ececef",
+    padding: 10,
+  },
+  detailValue: {
+    fontSize: 12.5,
+    fontFamily: "Courier",
+    lineHeight: 18,
+    color: "#1c1c1e",
+  },
 });

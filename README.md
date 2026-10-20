@@ -12,8 +12,11 @@ network traffic directly.
 - **Works with multiple axios instances** — attach it per-client with a `scope` label (`"My API"`,
   `"Billing API"`, …) so logs from different backends stay distinguishable.
 - **Search and filter** — filter by `All` / `Errors` / `Pending`, or search by URL, method, or status code.
-- **Full request/response detail** — method, URL, status, duration, params, body, request headers,
-  response body, and response headers, all pretty-printed and selectable for copy.
+- **Clear logs** — a "Clear" action in the log list header wipes every stored entry (calls `clearApiLogs()`
+  under the hood), so you can start a clean trace without reloading the app.
+- **Structured detail view** — tapping a row opens a summary card (method badge, status pill, duration,
+  URL, error message) followed by bordered, monospaced sections for params, body, request headers,
+  response, and response headers — all selectable for copy.
 - **Copy as cURL** — turn any logged request into a ready-to-run `curl` command, with secrets already
   redacted. Uses a real clipboard if you wire one up, otherwise falls back to the native share sheet.
 - **Automatic secret redaction** — headers, body, and response are recursively scanned by key name
@@ -27,6 +30,10 @@ network traffic directly.
   `pod install`, no Gradle step — it works in plain Expo Go, not just a dev client.
 - **Long-press to hide** — long-press the floating button to dismiss it for the session, no code change
   needed.
+- **Long-press to dismiss an error row** — long-press the ⚠️ icon next to an error row's status to drop
+  just that row from the visible list. This only hides it from the current view (it's not deleted from
+  the store, and doesn't affect the error badge count) — it reappears the next time the overlay's
+  component remounts (an app reload, or a Fast Refresh that resets its state).
 
 ## Table of contents
 
@@ -83,7 +90,9 @@ export default function App() {
 ```
 
 Tap the floating bug button to open the live log. Long-press it to hide it for the session (no code
-change needed). Tap any row for full request/response detail, including a "Copy as cURL" action.
+change needed). Long-press the ⚠️ icon on an error row to drop just that row from the list until the next
+reload. Tap any row for the full, structured request/response detail, including a "Copy as cURL" action.
+Use "Clear" in the header to wipe all stored logs.
 
 ## Options
 
