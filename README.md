@@ -38,6 +38,8 @@ network traffic directly.
   `pod install`, no Gradle step — it works in plain Expo Go, not just a dev client.
 - **Long-press to hide** — long-press (without dragging) the floating button to dismiss it for the
   session, no code change needed.
+- **Light/dark mode toggle** — a 🌙/☀️ button in the inspector header switches its own theme; this is
+  independent of your app's theme and resets to light each time the overlay remounts.
 - **Long-press to dismiss an error row** — long-press the ⚠️ icon next to an error row's status to drop
   just that row from the visible list. This only hides it from the current view (it's not deleted from
   the store, and doesn't affect the error badge count) — it reappears the next time the overlay's

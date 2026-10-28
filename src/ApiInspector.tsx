@@ -21,6 +21,102 @@ import {
 } from "./apiLogStore";
 
 type Filter = "all" | "errors" | "pending";
+type ThemeName = "light" | "dark";
+
+interface Palette {
+  background: string;
+  surface: string;
+  surfaceBorder: string;
+  text: string;
+  subtext: string;
+  border: string;
+  chipBg: string;
+  chipActiveBg: string;
+  chipText: string;
+  chipActiveText: string;
+  accent: string;
+  codeBg: string;
+  searchBg: string;
+  errorColor: string;
+  okColor: string;
+  pendingColor: string;
+}
+
+const palettes: Record<ThemeName, Palette> = {
+  light: {
+    background: "#ffffff",
+    surface: "#f7f7f9",
+    surfaceBorder: "#ececef",
+    text: "#1c1c1e",
+    subtext: "#8a8a8e",
+    border: "#eee",
+    chipBg: "#f0f0f3",
+    chipActiveBg: "#1c1c1e",
+    chipText: "#1c1c1e",
+    chipActiveText: "#ffffff",
+    accent: "#3a79f2",
+    codeBg: "#ffffff",
+    searchBg: "#f0f0f3",
+    errorColor: "#d64545",
+    okColor: "#1f9d55",
+    pendingColor: "#8a8a8e",
+  },
+  dark: {
+    background: "#121214",
+    surface: "#1c1c1f",
+    surfaceBorder: "#2e2e31",
+    text: "#f2f2f4",
+    subtext: "#9a9a9e",
+    border: "#2a2a2d",
+    chipBg: "#232326",
+    chipActiveBg: "#f2f2f4",
+    chipText: "#f2f2f4",
+    chipActiveText: "#121214",
+    accent: "#5b96ff",
+    codeBg: "#0c0c0e",
+    searchBg: "#232326",
+    errorColor: "#ff6b6b",
+    okColor: "#3ddc84",
+    pendingColor: "#9a9a9e",
+  },
+};
+
+function createThemedStyles(colors: Palette) {
+  return StyleSheet.create({
+    modalRoot: { backgroundColor: colors.background },
+    title: { color: colors.text },
+    headerAction: { color: colors.accent },
+    search: { backgroundColor: colors.searchBg, color: colors.text },
+    chip: { backgroundColor: colors.chipBg },
+    chipActive: { backgroundColor: colors.chipActiveBg },
+    chipText: { color: colors.chipText },
+    chipTextActive: { color: colors.chipActiveText },
+    row: { borderBottomColor: colors.border },
+    rowMethod: { color: colors.accent },
+    rowUrl: { color: colors.text },
+    rowTime: { color: colors.subtext },
+    empty: { color: colors.subtext },
+    summaryCard: {
+      backgroundColor: colors.surface,
+      borderColor: colors.surfaceBorder,
+    },
+    methodBadge: { backgroundColor: colors.accent },
+    summaryTime: { color: colors.subtext },
+    summaryUrl: { color: colors.text },
+    summaryMessage: { color: colors.subtext },
+    detailCard: {
+      backgroundColor: colors.surface,
+      borderColor: colors.surfaceBorder,
+    },
+    detailLabel: { color: colors.subtext },
+    detailCopyAction: { color: colors.accent },
+    codeBlock: {
+      backgroundColor: colors.codeBg,
+      borderColor: colors.surfaceBorder,
+    },
+    detailValue: { color: colors.text },
+  });
+}
 
 export interface ApiInspectorInsets {
   top?: number;
@@ -54,9 +150,9 @@ function pretty(value: unknown): string {
   }
 }
 
-function statusColor(entry: ApiLogEntry): string {
-  if (entry.pending) return "#8a8a8e";
-  return entry.ok ? "#1f9d55" : "#d64545";
+function statusColor(entry: ApiLogEntry, colors: Palette): string {
+  if (entry.pending) return colors.pendingColor;
+  return entry.ok ? colors.okColor : colors.errorColor;
 }
 
 /** axios's `params` option never makes it into `entry.url` — it's sent separately at request time. */
@@ -150,6 +246,11 @@ export function ApiInspector({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [theme, setTheme] = useState<ThemeName>("light");
+  const colors = palettes[theme];
+  const themed = useMemo(() => createThemedStyles(colors), [theme]);
+  const toggleTheme = () =>
+    setTheme((current) => (current === "light" ? "dark" : "light"));
   // Long-press-to-hide for an error row. Kept in local state (not the store), so it's a
   // session-only dismiss: it resets on the next app reload/remount, not a real delete.
   const [dismissedIds, setDismissedIds] = useState<ReadonlySet<number>>(
@@ -296,17 +397,32 @@ export function ApiInspector({
         onRequestClose={() => setVisible(false)}
       >
         <View
-          style={[styles.modalRoot, { paddingTop: (insets?.top ?? 0) + 12 }]}
+          style={[
+            styles.modalRoot,
+            themed.modalRoot,
+            { paddingTop: (insets?.top ?? 0) + 12 },
+          ]}
         >
           {selected ? (
             <>
               <View style={styles.header}>
                 <Pressable onPress={() => setSelectedId(null)}>
-                  <Text style={styles.headerAction}>‹ Back</Text>
+                  <Text style={[styles.headerAction, themed.headerAction]}>
+                    ‹ Back
+                  </Text>
                 </Pressable>
-                <Pressable onPress={() => copyCurl(selected)}>
-                  <Text style={styles.headerAction}>Copy as cURL</Text>
-                </Pressable>
+                <View style={styles.headerActions}>
+                  <Pressable onPress={toggleTheme} hitSlop={8}>
+                    <Text style={styles.themeToggle}>
+                      {theme === "light" ? "🌙" : "☀️"}
+                    </Text>
+                  </Pressable>
+                  <Pressable onPress={() => copyCurl(selected)}>
+                    <Text style={[styles.headerAction, themed.headerAction]}>
+                      Copy as cURL
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
               <FlatList
                 data={[
@@ -318,46 +434,63 @@ export function ApiInspector({
                 ]}
                 keyExtractor={([label]) => label}
                 ListHeaderComponent={
-                  <View style={styles.summaryCard}>
+                  <View style={[styles.summaryCard, themed.summaryCard]}>
                     <View style={styles.summaryTopRow}>
-                      <Text style={styles.methodBadge}>{selected.method}</Text>
+                      <Text style={[styles.methodBadge, themed.methodBadge]}>
+                        {selected.method}
+                      </Text>
                       <Text
                         style={[
                           styles.statusBadge,
                           {
-                            color: statusColor(selected),
-                            borderColor: statusColor(selected),
+                            color: statusColor(selected, colors),
+                            borderColor: statusColor(selected, colors),
                           },
                         ]}
                       >
                         {selected.pending ? "…" : selected.status}
                       </Text>
-                      <Text style={styles.summaryTime}>
+                      <Text style={[styles.summaryTime, themed.summaryTime]}>
                         {selected.pending ? "" : `${selected.ms} ms`}
                       </Text>
                     </View>
-                    <Text style={styles.summaryUrl} selectable>
+                    <Text
+                      style={[styles.summaryUrl, themed.summaryUrl]}
+                      selectable
+                    >
                       {selected.url}
                     </Text>
                     {selected.message ? (
-                      <Text style={styles.summaryMessage} selectable>
+                      <Text
+                        style={[styles.summaryMessage, themed.summaryMessage]}
+                        selectable
+                      >
                         {selected.message}
                       </Text>
                     ) : null}
                   </View>
                 }
                 renderItem={({ item: [label, value] }) => (
-                  <View style={styles.detailCard}>
+                  <View style={[styles.detailCard, themed.detailCard]}>
                     <View style={styles.detailCardHeader}>
-                      <Text style={styles.detailLabel}>{label}</Text>
+                      <Text style={[styles.detailLabel, themed.detailLabel]}>
+                        {label}
+                      </Text>
                       {value !== "—" && (
                         <Pressable onPress={() => copyText(value)} hitSlop={8}>
-                          <Text style={styles.detailCopyAction}>Copy</Text>
+                          <Text
+                            style={[
+                              styles.detailCopyAction,
+                              themed.detailCopyAction,
+                            ]}
+                          >
+                            Copy
+                          </Text>
                         </Pressable>
                       )}
                     </View>
-                    <View style={styles.codeBlock}>
-                      <Text style={styles.detailValue} selectable>
+                    <View style={[styles.codeBlock, themed.codeBlock]}>
+                      <Text style={[styles.detailValue, themed.detailValue]} selectable>
                         {value}
                       </Text>
                     </View>
@@ -369,13 +502,22 @@ export function ApiInspector({
           ) : (
             <>
               <View style={styles.header}>
-                <Text style={styles.title}>API Inspector</Text>
+                <Text style={[styles.title, themed.title]}>API Inspector</Text>
                 <View style={styles.headerActions}>
+                  <Pressable onPress={toggleTheme} hitSlop={8}>
+                    <Text style={styles.themeToggle}>
+                      {theme === "light" ? "🌙" : "☀️"}
+                    </Text>
+                  </Pressable>
                   <Pressable onPress={() => clearApiLogs()}>
-                    <Text style={styles.headerAction}>Clear</Text>
+                    <Text style={[styles.headerAction, themed.headerAction]}>
+                      Clear
+                    </Text>
                   </Pressable>
                   <Pressable onPress={() => setVisible(false)}>
-                    <Text style={styles.headerAction}>Close</Text>
+                    <Text style={[styles.headerAction, themed.headerAction]}>
+                      Close
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -383,8 +525,8 @@ export function ApiInspector({
                 value={query}
                 onChangeText={setQuery}
                 placeholder="Search by URL or status"
-                placeholderTextColor="#8a8a8e"
-                style={styles.search}
+                placeholderTextColor={colors.subtext}
+                style={[styles.search, themed.search]}
                 autoCorrect={false}
                 autoCapitalize="none"
               />
@@ -395,13 +537,17 @@ export function ApiInspector({
                     onPress={() => setFilter(option)}
                     style={[
                       styles.chip,
+                      themed.chip,
                       filter === option && styles.chipActive,
+                      filter === option && themed.chipActive,
                     ]}
                   >
                     <Text
                       style={[
                         styles.chipText,
+                        themed.chipText,
                         filter === option && styles.chipTextActive,
+                        filter === option && themed.chipTextActive,
                       ]}
                     >
                       {option === "all"
@@ -419,11 +565,16 @@ export function ApiInspector({
                 renderItem={({ item }) => (
                   <Pressable
                     onPress={() => setSelectedId(item.id)}
-                    style={styles.row}
+                    style={[styles.row, themed.row]}
                   >
                     <View style={styles.rowTop}>
-                      <Text style={styles.rowMethod}>{item.method}</Text>
-                      <Text style={styles.rowUrl} numberOfLines={1}>
+                      <Text style={[styles.rowMethod, themed.rowMethod]}>
+                        {item.method}
+                      </Text>
+                      <Text
+                        style={[styles.rowUrl, themed.rowUrl]}
+                        numberOfLines={1}
+                      >
                         {item.url}
                       </Text>
                     </View>
@@ -440,21 +591,27 @@ export function ApiInspector({
                         <Text
                           style={[
                             styles.statusPill,
-                            { color: statusColor(item) },
+                            { color: statusColor(item, colors) },
                           ]}
                         >
                           {item.pending ? "…" : item.status}
                         </Text>
                       </View>
-                      <Text style={styles.rowTime}>
+                      <Text style={[styles.rowTime, themed.rowTime]}>
                         {item.pending ? "" : `${item.ms} ms`}
                       </Text>
                     </View>
                   </Pressable>
                 )}
                 ListEmptyComponent={
-                  <Text style={styles.empty}>No requests yet.</Text>
+                  <Text style={[styles.empty, themed.empty]}>
+                    No requests yet.
+                  </Text>
                 }
+                contentContainerStyle={[
+                  styles.listContent,
+                  { paddingBottom: (insets?.bottom ?? 0) + 24 },
+                ]}
               />
             </>
           )}
@@ -502,6 +659,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: "600" },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 16 },
   headerAction: { fontSize: 15, color: "#3a79f2" },
+  themeToggle: { fontSize: 16 },
   search: {
     marginHorizontal: 16,
     marginBottom: 10,
@@ -545,6 +703,7 @@ const styles = StyleSheet.create({
   statusPill: { fontSize: 12, fontWeight: "700" },
   rowTime: { fontSize: 12, color: "#8a8a8e" },
   empty: { textAlign: "center", marginTop: 40, color: "#8a8a8e" },
+  listContent: { paddingBottom: 24 },
   detailList: { paddingHorizontal: 16, paddingBottom: 40 },
   summaryCard: {
     marginBottom: 16,
