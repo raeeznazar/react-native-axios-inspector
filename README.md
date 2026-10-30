@@ -27,6 +27,11 @@ network traffic directly.
   params (axios keeps those separate from the URL internally — this folds them back in so the repro is
   complete), with secrets already redacted. Uses a real clipboard if you wire one up, otherwise falls back
   to the native share sheet.
+- **Share the full request** — the 📤 button in the detail view opens the native share sheet with a
+  complete, human-readable dump of that entry (method, URL, status, duration, error, params, body,
+  headers, response), ready to drop into Slack, WhatsApp, email, or any other app — secrets already
+  redacted. Unlike the per-section "Copy" actions, this always opens the share sheet rather than a wired
+  clipboard module, so you can pick a destination app (most share sheets also offer a "Copy" option).
 - **Automatic secret redaction** — headers, body, and response are recursively scanned by key name
   (`password`, `token`, `authorization`, `apiKey`, `secret`, …) and masked before anything is stored.
 - **Error and pending badges** — the floating button badges itself with the error count (or total count if

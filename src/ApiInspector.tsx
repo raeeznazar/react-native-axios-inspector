@@ -186,6 +186,30 @@ function buildCurl(entry: ApiLogEntry): string {
     .join(" ");
 }
 
+function detailSections(entry: ApiLogEntry): [string, string][] {
+  return [
+    ["Params", pretty(entry.params)],
+    ["Body", pretty(entry.body)],
+    ["Request headers", pretty(entry.requestHeaders)],
+    ["Response", pretty(entry.response)],
+    ["Response headers", pretty(entry.responseHeaders)],
+  ];
+}
+
+/** Full human-readable dump of a request, for sharing to chat apps/email rather than reproducing it. */
+function buildShareText(entry: ApiLogEntry): string {
+  const lines = [
+    `${entry.method} ${entry.url}`,
+    entry.pending ? "Status: pending" : `Status: ${entry.status} · ${entry.ms} ms`,
+  ];
+  if (entry.message) lines.push(`Error: ${entry.message}`);
+  for (const [label, value] of detailSections(entry)) {
+    if (value === "—") continue;
+    lines.push("", `${label}:`, value);
+  }
+  return lines.join("\n");
+}
+
 function matchesQuery(entry: ApiLogEntry, query: string): boolean {
   if (!query) return true;
   const haystack = `${entry.url} ${entry.status} ${entry.method}`.toLowerCase();
@@ -368,6 +392,10 @@ export function ApiInspector({
     copyText(buildCurl(entry));
   }
 
+  function shareEntry(entry: ApiLogEntry) {
+    Share.share({ message: buildShareText(entry) });
+  }
+
   return (
     <>
       <Animated.View
@@ -417,6 +445,9 @@ export function ApiInspector({
                       {theme === "light" ? "🌙" : "☀️"}
                     </Text>
                   </Pressable>
+                  <Pressable onPress={() => shareEntry(selected)} hitSlop={8}>
+                    <Text style={styles.themeToggle}>📤</Text>
+                  </Pressable>
                   <Pressable onPress={() => copyCurl(selected)}>
                     <Text style={[styles.headerAction, themed.headerAction]}>
                       Copy as cURL
@@ -425,13 +456,7 @@ export function ApiInspector({
                 </View>
               </View>
               <FlatList
-                data={[
-                  ["Params", pretty(selected.params)],
-                  ["Body", pretty(selected.body)],
-                  ["Request headers", pretty(selected.requestHeaders)],
-                  ["Response", pretty(selected.response)],
-                  ["Response headers", pretty(selected.responseHeaders)],
-                ]}
+                data={detailSections(selected)}
                 keyExtractor={([label]) => label}
                 ListHeaderComponent={
                   <View style={[styles.summaryCard, themed.summaryCard]}>
