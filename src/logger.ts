@@ -39,6 +39,8 @@ export interface ApiInspectorOptions {
   maxBodyBytes?: number;
   /** Defaults to a dev-environment check; pass explicitly to force on/off regardless of environment. */
   enabled?: boolean;
+  /** Also `console.log`/`console.error` each request (redacted, same as the overlay). Off by default — opt in per client, since it can get noisy. */
+  logToConsole?: boolean;
 }
 
 type ResolvedOptions = Required<ApiInspectorOptions>;
@@ -126,6 +128,7 @@ function resolveOptions(options: ApiInspectorOptions): ResolvedOptions {
     redactKeys: options.redactKeys ?? DEFAULT_REDACT_KEYS,
     maxBodyBytes: options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES,
     enabled: options.enabled ?? isDevEnvironment(),
+    logToConsole: options.logToConsole ?? false,
   };
 }
 
@@ -137,20 +140,32 @@ export function logApiRequest(
   const timed = config as TimedConfig;
   const startedAt = Date.now();
   timed.__startedAt = startedAt;
+  const method = config.method?.toUpperCase() ?? "GET";
+  const url = toApiUrl(config);
+  const params = sanitize(config.params, options);
+  const body = sanitize(config.data, options);
+  const requestHeaders = sanitize(headersToPlain(config.headers), options);
   timed.__logId = addApiLog({
     scope,
-    method: config.method?.toUpperCase() ?? "GET",
-    url: toApiUrl(config),
+    method,
+    url,
     startedAt,
     ms: 0,
     pending: true,
     ok: false,
     status: "…",
-    params: sanitize(config.params, options),
-    body: sanitize(config.data, options),
-    requestHeaders: sanitize(headersToPlain(config.headers), options),
+    params,
+    body,
+    requestHeaders,
     hasResponse: false,
   });
+  if (options.logToConsole) {
+    console.log(`📡 [${scope}] → ${method} ${url}`, {
+      params,
+      body,
+      headers: requestHeaders,
+    });
+  }
   return config;
 }
 
@@ -161,15 +176,25 @@ export function logApiResponse(
 ): void {
   const timed = response.config as TimedConfig;
   if (timed.__logId === undefined) return;
+  const ms = Date.now() - (timed.__startedAt ?? Date.now());
+  const responseData = sanitize(response.data, options);
+  const responseHeaders = sanitize(headersToPlain(response.headers), options);
   updateApiLog(timed.__logId, {
     pending: false,
     ok: true,
     status: response.status,
-    ms: Date.now() - (timed.__startedAt ?? Date.now()),
+    ms,
     hasResponse: true,
-    response: sanitize(response.data, options),
-    responseHeaders: sanitize(headersToPlain(response.headers), options),
+    response: responseData,
+    responseHeaders,
   });
+  if (options.logToConsole) {
+    const method = response.config.method?.toUpperCase() ?? "GET";
+    console.log(
+      `✅ [${scope}] ← ${method} ${toApiUrl(response.config)} ${response.status} (${ms} ms)`,
+      { response: responseData, headers: responseHeaders },
+    );
+  }
 }
 
 export function logApiError(
@@ -179,16 +204,27 @@ export function logApiError(
 ): void {
   const timed = error.config as TimedConfig | undefined;
   if (timed?.__logId === undefined) return;
+  const ms = Date.now() - (timed.__startedAt ?? Date.now());
+  const status = error.response?.status ?? "NO RESPONSE";
+  const responseData = sanitize(error.response?.data, options);
+  const responseHeaders = sanitize(headersToPlain(error.response?.headers), options);
   updateApiLog(timed.__logId, {
     pending: false,
     ok: false,
-    status: error.response?.status ?? "NO RESPONSE",
-    ms: Date.now() - (timed.__startedAt ?? Date.now()),
+    status,
+    ms,
     message: error.message,
     hasResponse: !!error.response,
-    response: sanitize(error.response?.data, options),
-    responseHeaders: sanitize(headersToPlain(error.response?.headers), options),
+    response: responseData,
+    responseHeaders,
   });
+  if (options.logToConsole) {
+    const method = error.config?.method?.toUpperCase() ?? "GET";
+    console.error(
+      `❌ [${scope}] ← ${method} ${toApiUrl(error.config)} ${status} (${ms} ms) — ${error.message}`,
+      { response: responseData, headers: responseHeaders },
+    );
+  }
 }
 
 /**

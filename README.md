@@ -125,6 +125,8 @@ attachApiLogger(apiClient, "My API", {
   maxBodyBytes: 20_000,
   // Overrides the dev-environment check.
   enabled: true,
+  // Also print each request/response/error to the console (Metro/terminal), redacted the same way.
+  logToConsole: true,
 });
 ```
 
@@ -133,6 +135,7 @@ attachApiLogger(apiClient, "My API", {
 | `redactKeys`   | `string[]` | built-in list (see above) | Lower-cased substrings matched against object keys to mask values. |
 | `maxBodyBytes` | `number`   | `50_000`                  | Truncates stored/rendered body text past this length.              |
 | `enabled`      | `boolean`  | dev-environment check     | Force on/off regardless of environment.                            |
+| `logToConsole` | `boolean`  | `false`                   | Also `console.log`/`console.error` each request, so it shows up in the Metro/terminal output, not just the overlay. Off by default — can get noisy. |
 
 ### `ApiInspector` props
 
