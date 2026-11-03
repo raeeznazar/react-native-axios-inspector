@@ -14,7 +14,11 @@ network traffic directly.
   Built on React Native's own `Animated`/`PanResponder`, so this doesn't add a dependency.
 - **Works with multiple axios instances** — attach it per-client with a `scope` label (`"My API"`,
   `"Billing API"`, …) so logs from different backends stay distinguishable.
-- **Search and filter** — filter by `All` / `Errors` / `Pending`, or search by URL, method, or status code.
+- **Search and filter** — filter by `All` / `Errors` / `Pending` / `Console`, or search by URL, method, or
+  status code (searches message text in the `Console` tab).
+- **Console tab** — captures every `console.log` / `info` / `warn` / `error` call your app makes (not just
+  network traffic) into its own tab in the overlay, automatically, with no setup beyond mounting
+  `<ApiInspector />`. Still prints normally to Metro/terminal too — nothing is swallowed, only mirrored.
 - **Clear logs** — a "Clear" action in the log list header wipes every stored entry (calls `clearApiLogs()`
   under the hood), so you can start a clean trace without reloading the app.
 - **Structured detail view** — tapping a row opens a summary card (method badge, status pill, duration,
@@ -135,7 +139,7 @@ attachApiLogger(apiClient, "My API", {
 | `redactKeys`   | `string[]` | built-in list (see above) | Lower-cased substrings matched against object keys to mask values. |
 | `maxBodyBytes` | `number`   | `50_000`                  | Truncates stored/rendered body text past this length.              |
 | `enabled`      | `boolean`  | dev-environment check     | Force on/off regardless of environment.                            |
-| `logToConsole` | `boolean`  | `false`                   | Also `console.log`/`console.error` each request, so it shows up in the Metro/terminal output, not just the overlay. Off by default — can get noisy. |
+| `logToConsole` | `boolean`  | `false`                   | Also `console.log`/`console.error` each request, so it shows up in the Metro/terminal output, not just the overlay. Off by default — can get noisy. This is the reverse direction of the overlay's own `Console` tab, which mirrors your app's `console.*` calls *into* the overlay automatically, with no option needed. |
 
 ### `ApiInspector` props
 

@@ -8,6 +8,13 @@ export {
 export type { ApiLogEntry } from "./apiLogStore";
 
 export {
+  getConsoleLogs,
+  subscribeConsoleLogs,
+  clearConsoleLogs,
+} from "./consoleLogStore";
+export type { ConsoleLogEntry, ConsoleLevel } from "./consoleLogStore";
+
+export {
   attachApiLogger,
   logApiRequest,
   logApiResponse,

@@ -19,8 +19,16 @@ import {
   getApiLogs,
   subscribeApiLogs,
 } from "./apiLogStore";
+import { attachConsoleCapture } from "./consoleCapture";
+import {
+  ConsoleLevel,
+  ConsoleLogEntry,
+  clearConsoleLogs,
+  getConsoleLogs,
+  subscribeConsoleLogs,
+} from "./consoleLogStore";
 
-type Filter = "all" | "errors" | "pending";
+type Filter = "all" | "errors" | "pending" | "console";
 type ThemeName = "light" | "dark";
 
 interface Palette {
@@ -40,6 +48,7 @@ interface Palette {
   errorColor: string;
   okColor: string;
   pendingColor: string;
+  warnColor: string;
 }
 
 const palettes: Record<ThemeName, Palette> = {
@@ -60,6 +69,7 @@ const palettes: Record<ThemeName, Palette> = {
     errorColor: "#d64545",
     okColor: "#1f9d55",
     pendingColor: "#8a8a8e",
+    warnColor: "#b58900",
   },
   dark: {
     background: "#121214",
@@ -78,8 +88,31 @@ const palettes: Record<ThemeName, Palette> = {
     errorColor: "#ff6b6b",
     okColor: "#3ddc84",
     pendingColor: "#9a9a9e",
+    warnColor: "#e0af50",
   },
 };
+
+function consoleLevelColor(level: ConsoleLevel, colors: Palette): string {
+  switch (level) {
+    case "error":
+      return colors.errorColor;
+    case "warn":
+      return colors.warnColor;
+    case "info":
+      return colors.accent;
+    default:
+      return colors.text;
+  }
+}
+
+function formatClockTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  const period = date.getHours() >= 12 ? "PM" : "AM";
+  const hours = date.getHours() % 12 || 12;
+  return `${hours}:${minutes}:${seconds} ${period}`;
+}
 
 function createThemedStyles(colors: Palette) {
   return StyleSheet.create({
@@ -217,9 +250,15 @@ function matchesQuery(entry: ApiLogEntry, query: string): boolean {
 }
 
 function matchesFilter(entry: ApiLogEntry, filter: Filter): boolean {
+  if (filter === "console") return false;
   if (filter === "errors") return !entry.pending && !entry.ok;
   if (filter === "pending") return entry.pending;
   return true;
+}
+
+function matchesConsoleQuery(entry: ConsoleLogEntry, query: string): boolean {
+  if (!query) return true;
+  return entry.message.toLowerCase().includes(query.toLowerCase());
 }
 
 const FAB_SIZE = 48;
@@ -281,9 +320,19 @@ export function ApiInspector({
     () => new Set(),
   );
 
+  const [consoleLogs, setConsoleLogs] = useState<ConsoleLogEntry[]>(() =>
+    getConsoleLogs(),
+  );
+
   useEffect(() => subscribeApiLogs(setLogs), []);
+  useEffect(() => subscribeConsoleLogs(setConsoleLogs), []);
 
   const active = enabled ?? isDevEnvironment();
+
+  useEffect(() => {
+    if (!active) return;
+    return attachConsoleCapture();
+  }, [active]);
 
   // `fabOrigin` is the committed (non-dragging) top/left; `pan` is the live offset applied
   // via `transform` while a drag is in progress. They're kept separate so a drag never fights
@@ -356,6 +405,8 @@ export function ApiInspector({
     setDismissedIds((prev) => new Set(prev).add(id));
   }
 
+  const isConsoleFilter = filter === "console";
+
   const filteredLogs = useMemo(
     () =>
       logs.filter(
@@ -365,6 +416,11 @@ export function ApiInspector({
           matchesQuery(entry, query),
       ),
     [logs, filter, query, dismissedIds],
+  );
+
+  const filteredConsoleLogs = useMemo(
+    () => consoleLogs.filter((entry) => matchesConsoleQuery(entry, query)),
+    [consoleLogs, query],
   );
 
   const errorCount = useMemo(
@@ -534,7 +590,11 @@ export function ApiInspector({
                       {theme === "light" ? "🌙" : "☀️"}
                     </Text>
                   </Pressable>
-                  <Pressable onPress={() => clearApiLogs()}>
+                  <Pressable
+                    onPress={() =>
+                      isConsoleFilter ? clearConsoleLogs() : clearApiLogs()
+                    }
+                  >
                     <Text style={[styles.headerAction, themed.headerAction]}>
                       Clear
                     </Text>
@@ -556,88 +616,132 @@ export function ApiInspector({
                 autoCapitalize="none"
               />
               <View style={styles.chips}>
-                {(["all", "errors", "pending"] as Filter[]).map((option) => (
-                  <Pressable
-                    key={option}
-                    onPress={() => setFilter(option)}
-                    style={[
-                      styles.chip,
-                      themed.chip,
-                      filter === option && styles.chipActive,
-                      filter === option && themed.chipActive,
-                    ]}
-                  >
-                    <Text
+                {(["all", "errors", "pending", "console"] as Filter[]).map(
+                  (option) => (
+                    <Pressable
+                      key={option}
+                      onPress={() => setFilter(option)}
                       style={[
-                        styles.chipText,
-                        themed.chipText,
-                        filter === option && styles.chipTextActive,
-                        filter === option && themed.chipTextActive,
+                        styles.chip,
+                        themed.chip,
+                        filter === option && styles.chipActive,
+                        filter === option && themed.chipActive,
                       ]}
                     >
-                      {option === "all"
-                        ? "All"
-                        : option === "errors"
-                          ? "Errors"
-                          : "Pending"}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              <FlatList
-                data={filteredLogs}
-                keyExtractor={(entry) => String(entry.id)}
-                renderItem={({ item }) => (
-                  <Pressable
-                    onPress={() => setSelectedId(item.id)}
-                    style={[styles.row, themed.row]}
-                  >
-                    <View style={styles.rowTop}>
-                      <Text style={[styles.rowMethod, themed.rowMethod]}>
-                        {item.method}
-                      </Text>
                       <Text
-                        style={[styles.rowUrl, themed.rowUrl]}
-                        numberOfLines={1}
+                        style={[
+                          styles.chipText,
+                          themed.chipText,
+                          filter === option && styles.chipTextActive,
+                          filter === option && themed.chipTextActive,
+                        ]}
                       >
-                        {item.url}
+                        {option === "all"
+                          ? "All"
+                          : option === "errors"
+                            ? "Errors"
+                            : option === "pending"
+                              ? "Pending"
+                              : "Console"}
                       </Text>
-                    </View>
-                    <View style={styles.rowBottom}>
-                      <View style={styles.rowStatusGroup}>
-                        {!item.pending && !item.ok && (
-                          <Pressable
-                            onLongPress={() => dismissLog(item.id)}
-                            hitSlop={8}
-                          >
-                            <Text style={styles.errorIcon}>⚠️</Text>
-                          </Pressable>
-                        )}
+                    </Pressable>
+                  ),
+                )}
+              </View>
+              {isConsoleFilter ? (
+                <FlatList
+                  data={filteredConsoleLogs}
+                  keyExtractor={(entry) => String(entry.id)}
+                  renderItem={({ item }) => (
+                    <View style={[styles.row, themed.row]}>
+                      <View style={styles.rowTop}>
                         <Text
                           style={[
-                            styles.statusPill,
-                            { color: statusColor(item, colors) },
+                            styles.consoleLevel,
+                            { color: consoleLevelColor(item.level, colors) },
                           ]}
                         >
-                          {item.pending ? "…" : item.status}
+                          {item.level.toUpperCase()}
+                        </Text>
+                        <Text style={[styles.rowTime, themed.rowTime]}>
+                          {formatClockTime(item.timestamp)}
                         </Text>
                       </View>
-                      <Text style={[styles.rowTime, themed.rowTime]}>
-                        {item.pending ? "" : `${item.ms} ms`}
+                      <Text
+                        style={[styles.consoleMessage, themed.rowUrl]}
+                        numberOfLines={6}
+                        selectable
+                      >
+                        {item.message}
                       </Text>
                     </View>
-                  </Pressable>
-                )}
-                ListEmptyComponent={
-                  <Text style={[styles.empty, themed.empty]}>
-                    No requests yet.
-                  </Text>
-                }
-                contentContainerStyle={[
-                  styles.listContent,
-                  { paddingBottom: (insets?.bottom ?? 0) + 24 },
-                ]}
-              />
+                  )}
+                  ListEmptyComponent={
+                    <Text style={[styles.empty, themed.empty]}>
+                      No console logs yet.
+                    </Text>
+                  }
+                  contentContainerStyle={[
+                    styles.listContent,
+                    { paddingBottom: (insets?.bottom ?? 0) + 24 },
+                  ]}
+                />
+              ) : (
+                <FlatList
+                  data={filteredLogs}
+                  keyExtractor={(entry) => String(entry.id)}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      onPress={() => setSelectedId(item.id)}
+                      style={[styles.row, themed.row]}
+                    >
+                      <View style={styles.rowTop}>
+                        <Text style={[styles.rowMethod, themed.rowMethod]}>
+                          {item.method}
+                        </Text>
+                        <Text
+                          style={[styles.rowUrl, themed.rowUrl]}
+                          numberOfLines={1}
+                        >
+                          {item.url}
+                        </Text>
+                      </View>
+                      <View style={styles.rowBottom}>
+                        <View style={styles.rowStatusGroup}>
+                          {!item.pending && !item.ok && (
+                            <Pressable
+                              onLongPress={() => dismissLog(item.id)}
+                              hitSlop={8}
+                            >
+                              <Text style={styles.errorIcon}>⚠️</Text>
+                            </Pressable>
+                          )}
+                          <Text
+                            style={[
+                              styles.statusPill,
+                              { color: statusColor(item, colors) },
+                            ]}
+                          >
+                            {item.pending ? "…" : item.status}
+                          </Text>
+                        </View>
+                        <Text style={[styles.rowTime, themed.rowTime]}>
+                          {item.pending ? "" : `${item.ms} ms`}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  )}
+                  ListEmptyComponent={
+                    <Text style={[styles.empty, themed.empty]}>
+                      No requests yet.
+                    </Text>
+                  }
+                  contentContainerStyle={[
+                    styles.listContent,
+                    { paddingBottom: (insets?.bottom ?? 0) + 24 },
+                  ]}
+                />
+              )}
             </>
           )}
         </View>
@@ -727,6 +831,13 @@ const styles = StyleSheet.create({
   errorIcon: { fontSize: 12 },
   statusPill: { fontSize: 12, fontWeight: "700" },
   rowTime: { fontSize: 12, color: "#8a8a8e" },
+  consoleLevel: { fontSize: 11, fontWeight: "700", width: 52 },
+  consoleMessage: {
+    fontSize: 12.5,
+    fontFamily: "Courier",
+    lineHeight: 18,
+    marginTop: 4,
+  },
   empty: { textAlign: "center", marginTop: 40, color: "#8a8a8e" },
   listContent: { paddingBottom: 24 },
   detailList: { paddingHorizontal: 16, paddingBottom: 40 },
