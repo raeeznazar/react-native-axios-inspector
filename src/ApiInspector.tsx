@@ -176,10 +176,23 @@ function isDevEnvironment(): boolean {
 
 function pretty(value: unknown): string {
   if (value === undefined) return "—";
+  // A stored value can still be a JSON-text string here (e.g. a double-encoded API response
+  // that only partially unwrapped, or capSize's truncation marker) — keep unwrapping it the
+  // same way logger.ts's toLoggable does before formatting, so the overlay always renders the
+  // deepest parseable object/array with real indentation instead of a raw escaped blob.
+  let current = value;
+  for (let i = 0; i < 5 && typeof current === "string"; i++) {
+    try {
+      current = JSON.parse(current);
+    } catch {
+      break;
+    }
+  }
+  if (typeof current === "string") return current;
   try {
-    return JSON.stringify(value, null, 2);
+    return JSON.stringify(current, null, 2);
   } catch {
-    return String(value);
+    return String(current);
   }
 }
 
@@ -233,7 +246,9 @@ function detailSections(entry: ApiLogEntry): [string, string][] {
 function buildShareText(entry: ApiLogEntry): string {
   const lines = [
     `${entry.method} ${entry.url}`,
-    entry.pending ? "Status: pending" : `Status: ${entry.status} · ${entry.ms} ms`,
+    entry.pending
+      ? "Status: pending"
+      : `Status: ${entry.status} · ${entry.ms} ms`,
   ];
   if (entry.message) lines.push(`Error: ${entry.message}`);
   for (const [label, value] of detailSections(entry)) {
@@ -571,7 +586,10 @@ export function ApiInspector({
                       )}
                     </View>
                     <View style={[styles.codeBlock, themed.codeBlock]}>
-                      <Text style={[styles.detailValue, themed.detailValue]} selectable>
+                      <Text
+                        style={[styles.detailValue, themed.detailValue]}
+                        selectable
+                      >
                         {value}
                       </Text>
                     </View>

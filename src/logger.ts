@@ -65,14 +65,18 @@ function toLoggable(value: unknown): unknown {
   if (Array.isArray(parts)) {
     return { formData: Object.fromEntries(parts) };
   }
-  if (typeof value === "string") {
+  // Some APIs double-encode JSON (a JSON string whose content is itself JSON text). A single
+  // JSON.parse only unwraps one layer, leaving a string that then gets re-escaped when rendered —
+  // keep unwrapping while the result is still a parseable string.
+  let current = value;
+  for (let i = 0; i < 5 && typeof current === "string"; i++) {
     try {
-      return JSON.parse(value);
+      current = JSON.parse(current);
     } catch {
-      return value;
+      return current;
     }
   }
-  return value;
+  return current;
 }
 
 function headersToPlain(headers: unknown): unknown {
