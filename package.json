@@ -24,8 +24,16 @@
     "debugger",
     "devtools"
   ],
-  "author": "",
+  "author": "Raeez",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raeeznazar/react-native-axios-inspector.git"
+  },
+  "bugs": {
+    "url": "https://github.com/raeeznazar/react-native-axios-inspector/issues"
+  },
+  "homepage": "https://github.com/raeeznazar/react-native-axios-inspector#readme",
   "peerDependencies": {
     "axios": ">=0.21.0",
     "react": ">=16.8.0",
