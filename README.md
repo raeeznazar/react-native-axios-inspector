@@ -68,14 +68,18 @@ network traffic directly.
 
 ## Install
 
-Not published to the npm registry yet — install directly from GitHub:
-
 ```bash
-npm install git+https://github.com/raeeznazar/react-native-axios-inspector.git
+npm install react-native-axios-inspector
 ```
 
 `axios`, `react`, and `react-native` are peer dependencies — install them if your project doesn't already
 have them (it almost certainly does).
+
+To track the latest unreleased changes instead of the published version, install directly from GitHub:
+
+```bash
+npm install git+https://github.com/raeeznazar/react-native-axios-inspector.git
+```
 
 ## Usage
 
